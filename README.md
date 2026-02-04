@@ -5,6 +5,9 @@ An end-to-end data analysis project focused on exploring the historical relation
 ## Overview
 The primary goal of this analysis is to understand how gold's value fluctuates in response to currency movements. By leveraging nearly 45 years of historical data, the project identifies long-term trends and cyclical patterns essential for financial decision-making and risk assessment.
 
+## Results
+You can see the full report in `The Dream of Alchemists and Scrooge McDuck: Revealing the Secrets of Gold.pdf`   
+
 ## Tech Stack
 * **Language:** R
 * **Environment:** RStudio / R Markdown
