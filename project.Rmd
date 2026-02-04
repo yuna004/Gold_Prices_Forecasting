@@ -1,0 +1,335 @@
+---
+title: "The Dream of Alchemists and Scrooge McDuck: Revealing the Secrets of Gold"
+author: "Natalia Skutar"
+---
+## Introduction ##
+
+**Topic and motivation**
+
+Gold, the gleaming champion of precious metals, has fascinated people across time. Its brilliance and allure are unmatched, captivating hearts with its radiant beauty. From delicate adornments to shimmering treasures, gold embodies elegance and luxury. 
+Beyond its captivating appearance, gold holds a deeper significance. It represents wealth, prosperity, and stability. In times of uncertainty, it stands as a steadfast refuge, offering a sense of security and assurance. A timeless symbol of value, gold has stood the test of time, enduring as a precious asset. This precious metal symbolises wealth and growth, acting as a hedge against inflation and market fluctuations. Investors seek its golden embrace, finding solace in its enduring worth. For centuries, gold has been a trusted refuge, a tangible representation of financial security.
+Gold is a core of the world’s financials and economy. Its prices impact every aspect of our everyday lives. Knowing and understanding the secrets of the gold market is our key to success. Therefore, I decided to dig into its depths.
+
+**The aim and the tasks**
+
+The main goal of my research is to gather, analyse, and predict gold prices. I want to understand what influences the prices of gold, what general trends or tendencies they have, what events have an impact on them and how the average person should deal with all that information in the proper way to reach success.
+
+The tasks I set myself are to gather as much information on gold prices as I can, research the world of the golden market and its news, analyse all that data with appropriate methods, make some meaningful conclusions and then try to predict the gold prices.
+
+**Hypotheses and objectives description**
+
+I had a few assumptions, based on the general understanding of the gold significance  and  simple live observations before I started my research:
+
+- Gold prices are steadily rising nowadays
+- Gold prices should have some pattern
+- Worlds news affect gold prices a lot
+- The war in Ukraine particularly has an impact on gold prices
+- It should not be extremely hard to predict gold prices if I have enough data and assuming no shocking events in the nearest future.
+
+Therefore testing these points became my research objectives. 
+
+```{r}
+library(ggplot2)
+library(forecast)
+```
+
+```{r}
+gold_prices <- read.csv("gold_prices.csv")
+gold_prices$Date <- as.Date(gold_prices$Date, format = "%m/%d/%Y")
+```
+
+```{r}
+gold_prices$Month <- as.numeric(format(gold_prices$Date, "%m"))
+gold_prices$Year <- format(gold_prices$Date, "%Y")
+```
+
+## Data description ##
+
+I wanted to use as much data as I could and for it to be collected as often as possible. The oldest data I found is from 45 years ago, starting from 01.01.1979 and up to last week 03.05.24. The data was gathered every working day because the gold commodity exchange is closed on the weekends, and no trades are happening.
+
+There was the column Date and many other columns with prices in different currencies. At first, I wanted to choose a few of the most essential currencies and derive different models for them. Then I realised that the exchange rate depends a lot on gold prices, so probably in different countries the prices on gold commodity exchange should be similar. To check, I chose two main currencies, the American dollar (USD) and the Euro (EUR), and found data on exchange rates of USD/EUR from 1979. It was gathered weekly, not daily so I extended it for further usage. Using that information and some math I combined the datasets and created a new column newUSD which shows the gold prices in USD derived from EUR and exchange rates.
+
+```{r}
+exchange_rates <- read.csv("exchange_rates.csv")
+```
+
+```{r}
+gold_prices$newUSD <- NA
+for (i in 0:11835) {
+     matching_rows <- exchange_rates$Month == gold_prices$Month[i] & exchange_rates$Year == gold_prices$Year[i]
+     if (any(matching_rows)) {
+          rate <- exchange_rates$USD_EUR[matching_rows]
+          gold_prices$newUSD[i] <- gold_prices$EUR[i] / rate
+     }
+}
+```
+
+```{r}
+plot(gold_prices$Date[0:11830], gold_prices$USD[0:11830], type = "l", col = "blue", xlab = "Date", ylab = "USD",
+     main = "Gold prices")
+lines(gold_prices$Date[0:11830], gold_prices$EUR[0:11830], col = "red")
+lines(gold_prices$Date[0:11830], gold_prices$newUSD[0:11830], col = "green")
+legend("topright", legend = c("USD", "EUR", "newUSD"), col = c("blue", "red", "green"), lty = 1)
+gold_prices <- gold_prices[, c("Date", "USD")]
+```
+
+As you can see from the plot, I was right, so there was no sense in considering more than one currency. Hence, I ended up with just one column USD in my data and 11830 rows. Here is a clearer plot of data:
+
+```{r}
+plot(gold_prices$Date[0:11830], gold_prices$USD[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+```
+
+## Data analysis ##
+
+**Trend**
+
+At first, I wanted to see if there was a clear trendline as I expected. Thats what I’ve got:
+
+```{r}
+model <- lm(USD ~ Date, data = gold_prices)
+trendline <- predict(model)
+plot(gold_prices$Date[0:11830], gold_prices$USD[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+lines(gold_prices$Date[0:11830], trendline[0:11830], col = "red", lwd = 2)
+```
+
+Then I tried to remove the trend but found out that the detrended data didn’t look good.
+
+```{r}
+detrended_gold_prices <- gold_prices$USD - trendline
+plot(gold_prices$Date[0:11830], detrended_gold_prices[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+```
+
+So I discarded my first assumption that gold prices have stable growth, but there could still be a non-linear trend.
+
+```{r}
+gold_prices_ts <- ts(gold_prices$USD, frequency = 365/7*5)
+decomposed <- decompose(gold_prices_ts)
+```
+
+```{r}
+trend <- decomposed$trend
+plot(gold_prices$Date[0:11830], gold_prices$USD[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+lines(gold_prices$Date[0:11830], trend[0:11830], col = "red", lwd = 2)
+```
+
+This detrending worked much better, and the data seems pretty stationary now.
+
+```{r}
+trend[0:130] <- trend[130]
+trend[11706:11835] <- trend[11705]
+detrended_gold_prices <- gold_prices$USD - trend
+plot(gold_prices$Date[0:11830], detrended_gold_prices[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+```
+
+**Seasonality**
+
+Then I tried to find a seasonal component, but it seemed to be very small:
+
+```{r}
+seasonality <- decomposed$seasonal
+plot(seasonality[0:11830], main = "Seasonal Component", type = "l", col = "red")
+```
+
+```{r}
+deseasoned_gold_prices <- gold_prices$USD - seasonality
+plot(gold_prices$Date[0:11830], gold_prices$USD[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+lines(gold_prices$Date[0:11830], deseasoned_gold_prices[0:11830], col = "red", lwd = 2)
+```
+
+The difference appeared so insignificant that it’s even hard to see it (you should zoom a lot and you’ll see that the red deseasoned data is on top of the blue start data). It seemed strange because I really believed there should be some pattern, so I decided to check one more time on the not detrended data:
+
+```{r}
+stl_result <- stl(gold_prices_ts, s.window = "periodic")
+deseasoned_data <- seasadj(stl_result)
+plot(gold_prices_ts[0:11830], main = "Original and Deseasoned Time Series", ylab = "Value", type = "l", col = "blue")
+lines(deseasoned_data[0:11830], col = "red")
+```
+
+```{r}
+deseasoned_gold_prices <- detrended_gold_prices - seasonality
+plot(gold_prices$Date[0:11830], detrended_gold_prices[0:11830], type = "l", col = "blue",
+     xlab = "Date", ylab = "USD", main = "Gold Prices")
+lines(gold_prices$Date[0:11830], deseasoned_gold_prices[0:11830], col = "red", lwd = 2)
+```
+
+I even tried two different methods, but as you can see, the results were similarly disappointing. So I concluded that there is very insignificant seasonality I shouldn’t consider it later; therefore, I returned to just detrended data.
+
+```{r}
+gold_prices$det <- detrended_gold_prices
+```
+
+## Methodology ##
+
+**Dummy variables**
+
+As you can see there are a lot of ups and downs in the data and deseasoning didn’t help. Thus, I assumed this was due to some events in the world. I needed to consider only the most important ones so as not to overload the future model.
+
+```{r}
+upper <- quantile(gold_prices$det, probs = 0.005, na.rm = TRUE)
+lower <- quantile(gold_prices$det, probs = 0.995, na.rm = TRUE)
+```
+
+```{r}
+plot(gold_prices$Date[0:11830], gold_prices$det[0:11830], type = "l", main = "Deseasoned Gold Prices with Percentiles", xlab = "Date", ylab = "Value")
+abline(h = upper, col = "blue")
+abline(h = lower, col = "red")
+```
+
+There are four significant positive spikes and one negative. I spend a lot of time going through all 12 thousand rows of my data, trying to notice where these anomalies start and end. When I got the approximate dates I searched the internet to understand the precise events.
+So that’s the list of events that I created:
+
+1. USSR invaded into the Afghanistan
+
+```{r}
+gold_prices$afg <- 0
+gold_prices$afg[gold_prices$Date >= as.Date("1979-12-25") & gold_prices$Date <= as.Date("1980-01-21")] <- 1
+```
+
+2. There is no information about any event that happened, it seems to be only because of the world’s global economic problems
+
+```{r}
+gold_prices$smth1 <- 0
+gold_prices$smth1[gold_prices$Date >= as.Date("2011-05-20") & gold_prices$Date <= as.Date("2011-09-06")] <- 1
+```
+
+3. Big gold crash that happened because of the news that Cyprus agreed to sell all their gold reserves
+
+```{r}
+gold_prices$gc <- 0
+gold_prices$gc[gold_prices$Date >= as.Date("2013-04-12") & gold_prices$Date <= as.Date("2013-06-28")] <- 1
+```
+
+4. Global pandemic of Covid-19
+
+```{r}
+gold_prices$cov <- 0
+gold_prices$cov[gold_prices$Date >= as.Date("2020-05-11") & gold_prices$Date <= as.Date("2020-08-18")] <- 1
+```
+
+5. I searched through the internet a lot, but no one actually knows the reason why prices suddenly started growing so fast
+
+```{r}
+gold_prices$smth2 <- 0
+gold_prices$smth2[gold_prices$Date >= as.Date("2024-03-04") & gold_prices$Date <= as.Date("2024-10-03")] <- 1
+```
+
+
+One of the smaller spikes in the plot is also connected to the full-scale russian invasion to Ukraine. It’s not as significant as others, but it’s important specifically for us.
+
+6. Full-scale russian invasion to Ukraine
+
+```{r}
+gold_prices$war <- 0
+gold_prices$war[gold_prices$Date >= as.Date("2022-02-22") & gold_prices$Date <= as.Date("2020-03-08")] <- 1
+```
+
+I added 6 corresponding dummy variables to the data and made a simple model to diminish their impact.
+
+```{r}
+model <- lm(gold_prices$det ~ afg + smth1 + gc + cov + war + smth2, data = gold_prices)
+residuals <- resid(model)
+gold_prices$prices <- residuals
+```
+
+```{r}
+plot(gold_prices$Date[0:11830], gold_prices$det[0:11830], type = "l", xlab = "Time", ylab = "Gold Prices", main = "Gold Price Over Time", col = "blue")
+lines(gold_prices$Date[0:11830], gold_prices$prices[0:11830], col = "red")
+```
+
+Here is how the data looks after that:
+
+```{r}
+plot(gold_prices$Date[0:11830], gold_prices$prices[0:11830], type = "l", xlab = "Time", ylab = "Gold Prices", main = "Gold Price Over Time")
+abline(h = upper, col = "blue")
+abline(h = lower, col = "red")
+```
+
+**ARIMA**
+
+The next step is to build an ARIMA model. To specify it, at first, I needed to do an autocorrelation analysis.
+
+```{r}
+acf_data <- acf(gold_prices$prices[0:11830])
+pacf_values <- pacf(gold_prices$prices[0:11830])
+```
+
+From these plots, we can see that the value of the AR process has a big range, while the value for the MA process could only be 1.
+
+```{r}
+gold_prices_ts <- ts(gold_prices$prices)
+train_ratio <- 0.9
+train_size <- floor(train_ratio * length(gold_prices_ts))
+train_data <- gold_prices_ts[1:11825]
+test_data <- gold_prices_ts[11826:11835]
+```
+
+```{r}
+best_model <- NULL
+best_aic <- Inf
+
+for (p in 0:15) {
+     for (d in 0:1) {
+          for (q in 0:1) {
+               model <- arima(train_data, order = c(p, d, q))
+               aic <- AIC(model)
+               
+               if (aic < best_aic) {
+                    best_model <- model
+                    best_aic <- aic
+                    best_order <- c(p, d, q)
+               }
+          }
+     }
+}
+cat("Best ARIMA (p, d, q):", best_order, "\n")
+```
+
+Simply sorting through the possible options and comparing its AICs I figured out that the best-fitted model is ARIMA(14,1, 1).
+
+```{r}
+forecasted <- forecast(best_model, h = 10)
+gold_prices$forecasted <- c(train_data, forecasted$mean)
+```
+
+ARIMA model helped me predict the values for this week:
+
+```{r}
+gold_prices$prices <- gold_prices$prices + trend
+gold_prices$forecasted <- gold_prices$forecasted + trend
+plot(gold_prices$Date[11801:11830], gold_prices$prices[11801:11830], main = "Gold Prices with Forecast", type = "l", xlab = "Date", ylab = "Price", col = "blue")
+lines(gold_prices$Date[11801:11830], gold_prices$forecasted[11801:11830], col = "red")
+```
+
+```{r}
+cat("Predicted price for 10.05.2024:", gold_prices$forecasted[11835], "$\n")
+```
+
+```{r}
+cat("Approximate real price for 10.05.2024: 2320$\n")
+```
+
+```{r}
+cat("The difference in predictions is only", (2320 - 2207) * 100 / 2320, "%\n")
+```
+
+The difference seems significant, but it’s a one-day shot, if I compare my predictions for a longer time the difference is only about 4%. The total model accuracy is about 92%.
+
+## Conclusions ##
+
+This project was an excellent journey for me, and I hope for you too. I managed to fulfil my starting aim and tasks successfully. I had a few assumptions on the beginning so let’s go through all of them.
+
+I was right about general gold price growth, but the trend appeared to be not even close to linear. On the other hand, I was totally wrong about patterns in gold prices; there appears to be almost no seasonality at all. 
+
+The world's events definitely affect gold prices but not as much, and as long as I thought, even the most important ones keep an impact only for a couple of months. Also, I was disappointed about so short-term effect of russia’s full-scale invasion in Ukraine. 
+
+In total can say that the mechanisms of prediction appeared to be a lot harder than I expected, but I believe I received good results.
+
+```{r}
+
+```
